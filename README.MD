@@ -2,6 +2,9 @@
 
 A lightweight, non-blocking RTTTL (Ring Tone Text Transfer Language) music player library for ESP32-C3 microcontrollers. Plays tunes in the background via FreeRTOS while your main code continues running.
 
+
+Wikipedia RTTTL [https://en.wikipedia.org/wiki/Ring_Tone_Text_Transfer_Language](https://en.wikipedia.org/wiki/Ring_Tone_Text_Transfer_Language)
+
 ## 🎵 Features
 
 - **Non-blocking Playback**: Music plays in a FreeRTOS task, leaving your main loop free
@@ -24,6 +27,13 @@ GPIO 3  -------> SIG (Signal)
 5V      -------> VCC
 GND     -------> GND
 ```
+
+### Keyestudio SC8002B Amplifier / Speaker
+
+![Speaker](images/KeyStudio_SC8002B.png)<br/>
+[keyestudio-sc8002b-audio-power-amplifier-speaker-module-for-arduino-player](https://www.keyestudio.com/products/keyestudio-sc8002b-audio-power-amplifier-speaker-module-for-arduino-player)
+
+Available in NZ from Jaycar part #XC3744
 
 ### 2. Installation
 
