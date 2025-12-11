@@ -18,12 +18,13 @@ void doOtherWork();
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
+    delay(3000);
     
     Serial.println("\n==========================================");
     Serial.println("   ESP32-C3 RTTTL Music Player");
-    Serial.println("        with Loop Support");
+    Serial.println("   http://www.econode.nz ");
     Serial.println("==========================================");
+    printMenu();
     
     // Initialize player
     player.begin();
@@ -241,34 +242,4 @@ void enterCustomRTTTL() {
 // Simulate other tasks
 void doOtherWork() {
     unsigned long currentTime = millis();
-    
-    // Blink LED
-    if (currentTime - lastBlinkTime > 1000) {
-        blinkState = !blinkState;
-        digitalWrite(LED_BUILTIN, blinkState);
-        lastBlinkTime = currentTime;
-        
-        // Show we're alive
-        static int counter = 0;
-        if (counter++ % 5 == 0) {
-            Serial.print(".");
-        }
-    }
-    
-    // Simulate sensor reading
-    if (currentTime - lastSensorRead > 2000) {
-        int fakeSensorValue = random(0, 1024);
-        Serial.printf("\n[Sensor] Value: %d ", fakeSensorValue);
-        
-        if (player.isLooping()) {
-            Serial.print("(Looping)");
-        } else if (player.isPlaying()) {
-            Serial.print("(Playing)");
-        } else {
-            Serial.print("(Idle)");
-        }
-        Serial.println();
-        
-        lastSensorRead = currentTime;
-    }
 }
