@@ -8,52 +8,81 @@
 
 class RTTTLPlayer {
 public:
-    // Constructor
+    /**
+     * @brief Constructor for RTTTL Player
+     * @param pin GPIO pin connected to audio amplifier (default: GPIO3)
+     * @param defaultVolume Initial volume level 0-255 (default: 180)
+     */
     RTTTLPlayer(uint8_t pin = 3, uint8_t defaultVolume = 180);
     
-    // Destructor
+    /**
+     * @brief Destructor - cleans up FreeRTOS resources
+     */
     ~RTTTLPlayer();
     
-    // Initialize the player (call in setup())
+    /**
+     * @brief Initialize the player (must be called in setup())
+     */
     void begin();
     
-    // Play an RTTTL string (non-blocking)
-    // loopCount: 0 = no loop, 1-254 = loop X times, 255 = loop forever
+    /**
+     * @brief Play an RTTTL string
+     * @param rtttl RTTTL format string to play
+     * @param loopCount 0=play once, 1-254=loop X times, 255=loop forever
+     * @return true if playback started successfully
+     */
     bool play(const char* rtttl, uint8_t loopCount = 0);
     
-    // Stop playback immediately
+    /**
+     * @brief Stop playback immediately
+     */
     void stop();
     
-    // Check if currently playing
+    /**
+     * @brief Check if player is currently playing
+     * @return true if playing
+     */
     bool isPlaying() const { return _playing; }
     
-    // Check if currently looping
+    /**
+     * @brief Check if player is in loop mode
+     * @return true if looping
+     */
     bool isLooping() const { return _loopCount > 0; }
     
-    // Get/set volume (0-255)
+    /**
+     * @brief Set playback volume
+     * @param volume Volume level (0-255)
+     */
     void setVolume(uint8_t volume);
+    
+    /**
+     * @brief Get current volume
+     * @return Current volume level (0-255)
+     */
     uint8_t getVolume() const { return _volume; }
     
-    // Enable/disable debug output
+    /**
+     * @brief Enable/disable debug serial output
+     * @param enabled true to enable debug messages
+     */
     void setDebug(bool enabled) { _debug = enabled; }
     
+    /**
+     * @brief Get remaining loop count
+     * @return 0=not looping, 1-254=loops remaining, 255=infinite loop
+     */
+    uint8_t getRemainingLoops() const { return _loopCount; }
+    
 private:
-    // Static task function
+    // Static task function for FreeRTOS
     static void playerTask(void* parameter);
     
-    // Parse and play RTTTL
+    // Internal parsing and playback
     bool parseAndPlay(const char* rtttl);
-    
-    // Parse a number from string
     int parseNumber(const char* &ptr);
-    
-    // Get frequency for a note
     float getFrequency(uint8_t note, uint8_t octave);
-    
-    // Calculate duration in milliseconds
     int calculateDuration(int duration, int dots, int bpm);
-    
-    // Play a single note
     void playNote(float frequency, int durationMs);
     
     // Member variables
@@ -68,10 +97,10 @@ private:
     volatile uint8_t _loopCount;
     char* _currentTune;
     
-    // Note frequency table
+    // Note frequency table (C0 to B8)
     static const float NOTE_FREQUENCIES[108];
     
-    // Command types for queue
+    // Command types
     enum CommandType { PLAY, STOP, SET_VOLUME };
     
     // Queue message structure

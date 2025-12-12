@@ -1,0 +1,41 @@
+{
+  "name": "RTTTLPlayer",
+  "version": "1.0.0",
+  "description": "Non-blocking RTTTL music player for ESP32-C3 with FreeRTOS",
+  "keywords": "audio, music, rtttl, esp32, esp32-c3, freertos",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/econode-nz/RTTTLPlayer.git"
+  },
+  "authors": [
+    {
+      "name": "Matt Way",
+      "email": "matt@econode.nz",
+      "url": "https://www.econode.nz",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/econode-nz/RTTTLPlayer",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": [
+    "RTTTLPlayer.h",
+    "RTTTLTunes.h"
+  ],
+  "export": {
+    "include": [
+      "src/*",
+      "examples/*"
+    ]
+  },
+  "dependencies": {
+    "bblanchon/ArduinoJson": "^6.21.0"
+  },
+  "examples": [
+    {
+      "name": "MenuPlayer",
+      "base": "examples/MenuPlayer"
+    }
+  ]
+}

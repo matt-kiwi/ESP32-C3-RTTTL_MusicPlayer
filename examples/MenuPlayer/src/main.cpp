@@ -1,16 +1,22 @@
-#include <Arduino.h>
-#include "RTTTLPlayer.h"
-#include "RTTTLTunes.h"
+/**
+ * @example MenuPlayer.ino
+ * @brief Example showing full RTTTL player with serial menu
+ * 
+ * Connect ESP32-C3 GPIO3 to audio amplifier SIG pin
+ * Open Serial Monitor at 115200 baud
+ */
 
-// Create player instance
+#include <Arduino.h>
+#include <RTTTLPlayer.h>
+#include <RTTTLTunes.h>
+
+// Create player instance on GPIO3 with volume 180
 RTTTLPlayer player(3, 180);
 
 // Variables for main loop tasks
 unsigned long lastBlinkTime = 0;
-unsigned long lastSensorRead = 0;
 int blinkState = LOW;
 
-// Function prototypes
 void playTune(const char* name, const char* tune, uint8_t loopCount = 0);
 void printMenu();
 void enterCustomRTTTL();
@@ -18,13 +24,11 @@ void doOtherWork();
 
 void setup() {
     Serial.begin(115200);
-    delay(3000);
+    delay(500);
     
     Serial.println("\n==========================================");
-    Serial.println("   ESP32-C3 RTTTL Music Player");
-    Serial.println("   http://www.econode.nz ");
+    Serial.println("   ESP32-C3 RTTTL Music Player Example");
     Serial.println("==========================================");
-    printMenu();
     
     // Initialize player
     player.begin();
@@ -33,11 +37,11 @@ void setup() {
     // Play startup sound
     player.play(RTTTLTunes::startup);
     
-    // Setup other things
+    // Setup LED for visual feedback
     pinMode(LED_BUILTIN, OUTPUT);
     
-    Serial.println("System ready! Music plays in background.");
-    printMenu();
+    Serial.println("System ready! Type 'm' for menu.");
+    Serial.println("Adjust amplifier potentiometer for volume.");
 }
 
 void loop() {
@@ -70,9 +74,9 @@ void loop() {
             case 'j': playTune("Beethoven 5th Symphony", RTTTLTunes::beethoven5th); break;
             case 'k': playTune("Monty Python", RTTTLTunes::montyPython); break;
             
-            // Special loop examples
-            case 'L': playTune("Loop Test", RTTTLTunes::testScale, 255); break; // Loop forever
-            case 'M': playTune("Loop 3 times", RTTTLTunes::marioPowerUp, 3); break;
+            // Loop examples
+            case 'L': playTune("Loop Test Scale", RTTTLTunes::testScale, 255); break;
+            case 'M': playTune("Loop Mario Power-Up", RTTTLTunes::marioPowerUp, 3); break;
             
             // Control functions
             case 's': player.play(RTTTLTunes::success); break;
@@ -93,9 +97,16 @@ void loop() {
             case 'p':
                 Serial.print("Player status: ");
                 if (player.isLooping()) {
-                    Serial.println("Looping");
+                    Serial.print("Looping");
+                    if (player.getRemainingLoops() == 255) {
+                        Serial.println(" forever");
+                    } else {
+                        Serial.print(" (");
+                        Serial.print(player.getRemainingLoops());
+                        Serial.println(" loops remaining)");
+                    }
                 } else if (player.isPlaying()) {
-                    Serial.println("Playing");
+                    Serial.println("Playing once");
                 } else {
                     Serial.println("Idle");
                 }
@@ -115,7 +126,6 @@ void loop() {
     // Do other work while music plays in background
     doOtherWork();
     
-    // Small delay to prevent starving other tasks
     delay(10);
 }
 
@@ -175,22 +185,23 @@ void printMenu() {
     Serial.println(" x. Enter Custom RTTTL");
     Serial.println(" m. Show this Menu");
     Serial.println("==============================");
-    Serial.println("Note: Loop forever = 255, No loop = 0");
+    Serial.println("Note: Music plays in background!");
+    Serial.println("Find more tunes at:");
+    Serial.println("http://www.cellringtones.com/");
+    Serial.println("https://1j01.github.io/rtttl.js/");
     Serial.print("Select: ");
 }
 
 void enterCustomRTTTL() {
     Serial.println("\nEnter RTTTL string (end with newline):");
     Serial.println("Format: Name:d=4,o=5,b=120:c,d,e,f,g,a,b,c6");
-    Serial.println("Optional: Add loop count after string");
+    Serial.println("Optional loop count: Add space and number after RTTTL");
     Serial.println("Example: Test:d=4,o=5,b=120:c,d,e,f 255 (loop forever)");
     Serial.println("Example: Test:d=4,o=5,b=120:c,d,e,f 3 (loop 3 times)");
     Serial.println("Paste and press Enter...");
     
-    // Clear buffer
     while (Serial.available()) Serial.read();
     
-    // Wait for input
     unsigned long startTime = millis();
     while (!Serial.available() && (millis() - startTime < 10000)) {
         delay(100);
@@ -201,12 +212,10 @@ void enterCustomRTTTL() {
         input.trim();
         
         if (input.length() > 0) {
-            // Check if loop count is specified
             uint8_t loopCount = 0;
             int spaceIndex = input.lastIndexOf(' ');
             
             if (spaceIndex > 0) {
-                // Try to parse loop count from end
                 String loopStr = input.substring(spaceIndex + 1);
                 input = input.substring(0, spaceIndex);
                 
@@ -214,7 +223,7 @@ void enterCustomRTTTL() {
                     loopCount = 255;
                 } else {
                     loopCount = loopStr.toInt();
-                    if (loopCount > 254) loopCount = 0; // Sanitize
+                    if (loopCount > 254) loopCount = 0;
                 }
             }
             
@@ -239,7 +248,11 @@ void enterCustomRTTTL() {
     }
 }
 
-// Simulate other tasks
 void doOtherWork() {
-    unsigned long currentTime = millis();
+    // Blink LED to show main loop is running
+    if (millis() - lastBlinkTime > 1000) {
+        blinkState = !blinkState;
+        digitalWrite(LED_BUILTIN, blinkState);
+        lastBlinkTime = millis();
+    }
 }
