@@ -1,7 +1,11 @@
 #include "RTTTLPlayer.h"
 #include <string.h>
 
-// Note frequency table (C0 to B8)
+/**
+ * @brief Note frequency table (C0 to B8)
+ * 12 notes per octave × 9 octaves = 108 notes
+ * Index = (octave × 12) + note
+ */
 const float RTTTLPlayer::NOTE_FREQUENCIES[108] = {
     // Octave 0
     16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87,
@@ -23,83 +27,83 @@ const float RTTTLPlayer::NOTE_FREQUENCIES[108] = {
     4186.01, 4434.92, 4698.63, 4978.03, 5274.04, 5587.65, 5919.91, 6271.93, 6644.88, 7040.00, 7458.62, 7902.13
 };
 
-// Constructor
+/**
+ * @brief Constructor - initializes player with default values
+ * @param pin GPIO pin for audio output
+ * @param defaultVolume Initial volume (0-255)
+ */
 RTTTLPlayer::RTTTLPlayer(uint8_t pin, uint8_t defaultVolume) 
     : _pin(pin), _volume(defaultVolume), _playing(false), _debug(true),
-      _playerTask(NULL), _commandQueue(NULL), _loopCount(0), _currentTune(NULL) {
+      _playerTask(NULL), _commandQueue(NULL), _loopCount(0), _currentTune(NULL),
+      _tempoScale(1.0f), _currentBpm(120), _currentFrequency(0) {
 }
 
-// Destructor
+/**
+ * @brief Destructor - cleans up resources
+ */
 RTTTLPlayer::~RTTTLPlayer() {
     stop();
-    if (_playerTask) {
-        vTaskDelete(_playerTask);
-    }
-    if (_commandQueue) {
-        vQueueDelete(_commandQueue);
-    }
-    if (_currentTune) {
-        free(_currentTune);
-    }
+    if (_playerTask) vTaskDelete(_playerTask);
+    if (_commandQueue) vQueueDelete(_commandQueue);
+    if (_currentTune) free(_currentTune);
 }
 
-// Initialize the player
+/**
+ * @brief Initialize the player - call this in setup()
+ */
 void RTTTLPlayer::begin() {
     ledcAttach(_pin, 1000, 8);
     ledcWrite(_pin, _volume);
     
-    // Create command queue
     _commandQueue = xQueueCreate(5, sizeof(PlayerCommand));
     
-    // Create player task
-    xTaskCreate(
-        playerTask,       // Task function
-        "RTTTLPlayer",    // Task name
-        4096,            // Stack size
-        this,            // Task parameter
-        1,               // Priority
-        &_playerTask     // Task handle
-    );
+    xTaskCreate(playerTask, "RTTTLPlayer", 4096, this, 1, &_playerTask);
     
-    if (_debug) {
-        Serial.println("RTTTLPlayer initialized");
-    }
+    if (_debug) Serial.println("RTTTLPlayer initialized");
 }
 
-// Set volume
+/**
+ * @brief Set playback volume
+ * @param volume Volume level (0-255)
+ */
 void RTTTLPlayer::setVolume(uint8_t volume) {
     _volume = volume;
     PlayerCommand cmd;
     cmd.type = SET_VOLUME;
     cmd.volume = volume;
-    if (_commandQueue) {
-        xQueueSend(_commandQueue, &cmd, portMAX_DELAY);
-    }
+    if (_commandQueue) xQueueSend(_commandQueue, &cmd, portMAX_DELAY);
 }
 
-// Play an RTTTL string with loop option
+/**
+ * @brief Set tempo scaling factor
+ * @param scale 0.5 = half speed, 1.0 = normal, 2.0 = double speed
+ */
+void RTTTLPlayer::setTempoScale(float scale) {
+    _tempoScale = scale;
+    PlayerCommand cmd;
+    cmd.type = SET_TEMPO;
+    cmd.tempoScale = scale;
+    if (_commandQueue) xQueueSend(_commandQueue, &cmd, portMAX_DELAY);
+}
+
+/**
+ * @brief Play an RTTTL string
+ * @param rtttl RTTTL format string to play
+ * @param loopCount 0=play once, 1-254=loop X times, 255=loop forever
+ * @return true if playback started successfully
+ */
 bool RTTTLPlayer::play(const char* rtttl, uint8_t loopCount) {
-    if (!_commandQueue) {
-        return false;
-    }
+    if (!_commandQueue) return false;
     
-    // Stop any current playback
     stop();
     
-    // Copy the tune to heap
-    if (_currentTune) {
-        free(_currentTune);
-    }
+    if (_currentTune) free(_currentTune);
     _currentTune = strdup(rtttl);
     
-    if (!_currentTune) {
-        return false;
-    }
+    if (!_currentTune) return false;
     
-    // Set loop count
-    _loopCount = loopCount;
+    _tempoScale = 1.0f;
     
-    // Send play command
     PlayerCommand cmd;
     cmd.type = PLAY;
     cmd.tune = _currentTune;
@@ -107,18 +111,11 @@ bool RTTTLPlayer::play(const char* rtttl, uint8_t loopCount) {
     
     if (xQueueSend(_commandQueue, &cmd, portMAX_DELAY) == pdTRUE) {
         _playing = true;
+        _loopCount = loopCount;
+        
         if (_debug) {
             Serial.print("Playing: ");
-            Serial.print(rtttl);
-            if (loopCount == 0) {
-                Serial.println(" (no loop)");
-            } else if (loopCount == 255) {
-                Serial.println(" (loop forever)");
-            } else {
-                Serial.print(" (loop ");
-                Serial.print(loopCount);
-                Serial.println(" times)");
-            }
+            Serial.println(rtttl);
         }
         return true;
     }
@@ -129,28 +126,31 @@ bool RTTTLPlayer::play(const char* rtttl, uint8_t loopCount) {
     return false;
 }
 
-// Stop playback
+/**
+ * @brief Stop playback immediately
+ */
 void RTTTLPlayer::stop() {
     _playing = false;
     _loopCount = 0;
     
     PlayerCommand cmd;
     cmd.type = STOP;
-    if (_commandQueue) {
-        xQueueSend(_commandQueue, &cmd, portMAX_DELAY);
-    }
+    if (_commandQueue) xQueueSend(_commandQueue, &cmd, portMAX_DELAY);
     
-    // Also stop audio immediately
     ledcWriteTone(_pin, 0);
+    _currentFrequency = 0;
 }
 
-// Player task function
+/**
+ * @brief FreeRTOS player task - handles playback in background
+ * @param parameter Pointer to RTTTLPlayer instance
+ */
 void RTTTLPlayer::playerTask(void* parameter) {
     RTTTLPlayer* player = static_cast<RTTTLPlayer*>(parameter);
     PlayerCommand cmd;
+    float currentTempoScale = 1.0f;
     
     while (true) {
-        // Wait for commands
         if (xQueueReceive(player->_commandQueue, &cmd, portMAX_DELAY) == pdTRUE) {
             switch (cmd.type) {
                 case PLAY: {
@@ -158,15 +158,12 @@ void RTTTLPlayer::playerTask(void* parameter) {
                     uint8_t loopsRemaining = cmd.loopCount;
                     
                     do {
-                        // Play one iteration
                         player->parseAndPlay(cmd.tune);
                         
-                        // Update loop counter if not infinite
                         if (loopsRemaining > 0 && loopsRemaining < 255) {
                             loopsRemaining--;
                         }
                         
-                        // Brief pause between loops (except when stopping)
                         if (player->_playing && loopsRemaining > 0) {
                             delay(50);
                         }
@@ -176,7 +173,6 @@ void RTTTLPlayer::playerTask(void* parameter) {
                     player->_playing = false;
                     player->_loopCount = 0;
                     
-                    // Free the tune memory
                     if (player->_currentTune) {
                         free(player->_currentTune);
                         player->_currentTune = NULL;
@@ -188,99 +184,36 @@ void RTTTLPlayer::playerTask(void* parameter) {
                     player->_playing = false;
                     player->_loopCount = 0;
                     ledcWriteTone(player->_pin, 0);
-                    if (player->_debug) {
-                        Serial.println("Playback stopped");
-                    }
+                    player->_currentFrequency = 0;
+                    if (player->_debug) Serial.println("Playback stopped");
                     break;
                 case SET_VOLUME:
                     player->_volume = cmd.volume;
                     ledcWrite(player->_pin, player->_volume);
-                    if (player->_debug) {
-                        Serial.printf("Volume set to: %d\n", player->_volume);
-                    }
+                    if (player->_debug) Serial.printf("Volume set to: %d\n", player->_volume);
+                    break;
+                case SET_TEMPO:
+                    currentTempoScale = cmd.tempoScale;
+                    if (player->_debug) Serial.printf("Tempo scale: %.2f\n", currentTempoScale);
                     break;
             }
         }
     }
 }
 
-// Parse a number from string
-int RTTTLPlayer::parseNumber(const char* &ptr) {
-    int num = 0;
-    while (*ptr >= '0' && *ptr <= '9') {
-        num = num * 10 + (*ptr - '0');
-        ptr++;
-    }
-    return num;
-}
-
-// Get frequency for a note
-float RTTTLPlayer::getFrequency(uint8_t note, uint8_t octave) {
-    int index = (octave * 12) + note;
-    if (index >= 0 && index < 108) {
-        return NOTE_FREQUENCIES[index];
-    }
-    return 0.0;
-}
-
-// Calculate duration in milliseconds
-int RTTTLPlayer::calculateDuration(int duration, int dots, int bpm) {
-    // Base duration: quarter note = (60000 / bpm)
-    // Then divide by duration value (4 = quarter, 8 = eighth, etc.)
-    int baseMs = (60000 / bpm) * 4 / duration;
-    
-    // Apply dots: dotted note = note + half of its value
-    int total = baseMs;
-    int add = baseMs / 2;
-    for (int i = 0; i < dots; i++) {
-        total += add;
-        add /= 2;
-    }
-    
-    return total;
-}
-
-// Play a single note
-void RTTTLPlayer::playNote(float frequency, int durationMs) {
-    if (frequency > 20.0) {
-        ledcWriteTone(_pin, frequency);
-        ledcWrite(_pin, _volume);
-        
-        // Play most of the note
-        int playTime = durationMs - 20;
-        if (playTime > 0) {
-            delay(playTime);
-        }
-        
-        // Gentle fade out
-        for (int v = _volume; v > max(_volume/4, 30); v -= 15) {
-            ledcWrite(_pin, v);
-            delay(1);
-        }
-        
-        ledcWriteTone(_pin, 0);
-        delay(20); // Short silence between notes
-    } else {
-        // Pause
-        ledcWriteTone(_pin, 0);
-        delay(durationMs);
-    }
-}
-
-// Parse and play RTTTL
+/**
+ * @brief Parse and play an RTTTL string
+ * @param rtttl RTTTL string to play
+ * @return true if successful
+ */
 bool RTTTLPlayer::parseAndPlay(const char* rtttl) {
-    if (!rtttl || !*rtttl) {
-        return false;
-    }
+    if (!rtttl || !*rtttl) return false;
     
     const char* p = rtttl;
-    
-    // Find the title separator
     while (*p && *p != ':') p++;
     if (!*p) return false;
-    p++; // Skip first colon
+    p++;
     
-    // Parse defaults
     int defaultDuration = 4;
     int defaultOctave = 6;
     int bpm = 63;
@@ -302,25 +235,24 @@ bool RTTTLPlayer::parseAndPlay(const char* rtttl) {
     }
     
     if (!*p) return false;
-    p++; // Skip second colon
+    p++;
     
-    // Parse and play notes
+    // Store current BPM
+    _currentBpm = bpm;
+    
     while (*p && _playing) {
-        // Skip spaces and commas
         while (*p == ' ' || *p == ',') p++;
         if (!*p) break;
         
         int duration = defaultDuration;
-        int noteValue = -1; // -1 = pause
+        int noteValue = -1;
         int octave = defaultOctave;
         int dots = 0;
         
-        // Parse duration
         if (*p >= '0' && *p <= '9') {
             duration = parseNumber(p);
         }
         
-        // Parse note letter
         char noteChar = *p;
         switch (noteChar) {
             case 'c': case 'C': noteValue = 0; break;
@@ -330,45 +262,121 @@ bool RTTTLPlayer::parseAndPlay(const char* rtttl) {
             case 'g': case 'G': noteValue = 7; break;
             case 'a': case 'A': noteValue = 9; break;
             case 'b': case 'B': noteValue = 11; break;
-            case 'p': case 'P': noteValue = -1; break; // Pause
+            case 'p': case 'P': noteValue = -1; break;
         }
         
         if (noteValue == -1) {
-            // It's a pause
-            p++; // Skip 'p'
+            p++;
         } else {
-            // It's a note
-            p++; // Skip note letter
-            
-            // Check for sharp
+            p++;
             if (*p == '#') {
                 noteValue++;
                 p++;
             }
-            
-            // Parse octave
             if (*p >= '0' && *p <= '9') {
                 octave = *p - '0';
                 p++;
             }
         }
         
-        // Parse dots
         while (*p == '.') {
             dots++;
             p++;
         }
         
-        // Calculate frequency and duration
         float frequency = 0.0;
         if (noteValue >= 0) {
             frequency = getFrequency(noteValue, octave);
         }
         
         int durationMs = calculateDuration(duration, dots, bpm);
+        
+        if (_tempoScale != 1.0f) {
+            durationMs = static_cast<int>(durationMs / _tempoScale);
+        }
+        
         playNote(frequency, durationMs);
     }
     
     ledcWriteTone(_pin, 0);
+    _currentFrequency = 0;
     return true;
+}
+
+/**
+ * @brief Parse a number from string
+ * @param ptr Reference to string pointer (will be advanced)
+ * @return Parsed number
+ */
+int RTTTLPlayer::parseNumber(const char* &ptr) {
+    int num = 0;
+    while (*ptr >= '0' && *ptr <= '9') {
+        num = num * 10 + (*ptr - '0');
+        ptr++;
+    }
+    return num;
+}
+
+/**
+ * @brief Get frequency for a note and octave
+ * @param note Note index (0=C, 1=C#, 2=D, ..., 11=B)
+ * @param octave Octave number (0-8)
+ * @return Frequency in Hz
+ */
+float RTTTLPlayer::getFrequency(uint8_t note, uint8_t octave) {
+    int index = (octave * 12) + note;
+    if (index >= 0 && index < 108) {
+        return NOTE_FREQUENCIES[index];
+    }
+    return 0.0;
+}
+
+/**
+ * @brief Calculate note duration in milliseconds
+ * @param duration Note duration value (4=quarter, 8=eighth, etc.)
+ * @param dots Number of dots (dotted notes)
+ * @param bpm Beats per minute
+ * @return Duration in milliseconds
+ */
+int RTTTLPlayer::calculateDuration(int duration, int dots, int bpm) {
+    int baseMs = (60000 / bpm) * 4 / duration;
+    int total = baseMs;
+    int add = baseMs / 2;
+    for (int i = 0; i < dots; i++) {
+        total += add;
+        add /= 2;
+    }
+    return total;
+}
+
+/**
+ * @brief Play a single note
+ * @param frequency Note frequency in Hz (0 for rest)
+ * @param durationMs Duration in milliseconds
+ */
+void RTTTLPlayer::playNote(float frequency, int durationMs) {
+    // Set current frequency for EQ meter
+    _currentFrequency = frequency;
+    
+    if (frequency > 20.0) {
+        ledcWriteTone(_pin, frequency);
+        ledcWrite(_pin, _volume);
+        
+        int playTime = durationMs - 20;
+        if (playTime > 0) delay(playTime);
+        
+        for (int v = _volume; v > max(_volume/4, 30); v -= 15) {
+            ledcWrite(_pin, v);
+            delay(1);
+        }
+        
+        ledcWriteTone(_pin, 0);
+        delay(20);
+    } else {
+        ledcWriteTone(_pin, 0);
+        delay(durationMs);
+    }
+    
+    // Clear frequency when note ends
+    _currentFrequency = 0;
 }

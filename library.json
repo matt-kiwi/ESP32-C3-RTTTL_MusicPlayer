@@ -30,7 +30,7 @@
     ]
   },
   "dependencies": {
-    "bblanchon/ArduinoJson": "^6.21.0"
+    
   },
   "examples": [
     {

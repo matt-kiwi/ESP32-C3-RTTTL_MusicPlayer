@@ -51,6 +51,12 @@ public:
     bool isLooping() const { return _loopCount > 0; }
     
     /**
+     * @brief Get remaining loop count
+     * @return 0=not looping, 1-254=loops remaining, 255=infinite loop
+     */
+    uint8_t getRemainingLoops() const { return _loopCount; }
+    
+    /**
      * @brief Set playback volume
      * @param volume Volume level (0-255)
      */
@@ -63,52 +69,111 @@ public:
     uint8_t getVolume() const { return _volume; }
     
     /**
+     * @brief Set tempo scaling factor
+     * @param scale 0.5 = half speed, 1.0 = normal, 2.0 = double speed
+     */
+    void setTempoScale(float scale);
+    
+    /**
+     * @brief Get current tempo scaling
+     * @return Current tempo multiplier
+     */
+    float getTempoScale() const { return _tempoScale; }
+    
+    /**
+     * @brief Get current frequency being played
+     * @return Frequency in Hz, or 0 if no note is playing (rest/pause)
+     */
+    float getCurrentFrequency() const { return _currentFrequency; }
+    
+    /**
+     * @brief Get current BPM including tempo scaling
+     * @return Effective BPM (original BPM × tempo scale)
+     */
+    int getCurrentBPM() const { return static_cast<int>(_currentBpm * _tempoScale + 0.5f); }
+    
+    /**
      * @brief Enable/disable debug serial output
      * @param enabled true to enable debug messages
      */
     void setDebug(bool enabled) { _debug = enabled; }
     
-    /**
-     * @brief Get remaining loop count
-     * @return 0=not looping, 1-254=loops remaining, 255=infinite loop
-     */
-    uint8_t getRemainingLoops() const { return _loopCount; }
-    
 private:
-    // Static task function for FreeRTOS
+    /**
+     * @brief FreeRTOS task function for background playback
+     */
     static void playerTask(void* parameter);
     
-    // Internal parsing and playback
+    /**
+     * @brief Parse and play an RTTTL string
+     * @param rtttl RTTTL string to play
+     * @return true if successful
+     */
     bool parseAndPlay(const char* rtttl);
+    
+    /**
+     * @brief Parse a number from string
+     * @param ptr Reference to string pointer (will be advanced)
+     * @return Parsed number
+     */
     int parseNumber(const char* &ptr);
+    
+    /**
+     * @brief Get frequency for a note and octave
+     * @param note Note index (0=C, 1=C#, 2=D, ..., 11=B)
+     * @param octave Octave number (0-8)
+     * @return Frequency in Hz
+     */
     float getFrequency(uint8_t note, uint8_t octave);
+    
+    /**
+     * @brief Calculate note duration in milliseconds
+     * @param duration Note duration value (4=quarter, 8=eighth, etc.)
+     * @param dots Number of dots (dotted notes)
+     * @param bpm Beats per minute
+     * @return Duration in milliseconds
+     */
     int calculateDuration(int duration, int dots, int bpm);
+    
+    /**
+     * @brief Play a single note
+     * @param frequency Note frequency in Hz (0 for rest)
+     * @param durationMs Duration in milliseconds
+     */
     void playNote(float frequency, int durationMs);
     
     // Member variables
-    uint8_t _pin;
-    uint8_t _volume;
-    volatile bool _playing;
-    bool _debug;
-    TaskHandle_t _playerTask;
-    QueueHandle_t _commandQueue;
+    uint8_t _pin;               ///< GPIO pin for audio output
+    uint8_t _volume;            ///< Current volume level (0-255)
+    volatile bool _playing;     ///< True if currently playing
+    bool _debug;                ///< Debug output enabled
+    TaskHandle_t _playerTask;   ///< FreeRTOS task handle
+    QueueHandle_t _commandQueue;///< Command queue for task communication
     
     // Loop control
-    volatile uint8_t _loopCount;
-    char* _currentTune;
+    volatile uint8_t _loopCount;///< Current loop count (0=once, 255=forever)
+    char* _currentTune;         ///< Current RTTTL string (in heap)
+    
+    // New: Tempo and frequency tracking
+    volatile float _tempoScale;      ///< Tempo multiplier (default 1.0)
+    volatile int _currentBpm;        ///< Original BPM from RTTTL
+    volatile float _currentFrequency;///< Current note frequency (0 for rest)
     
     // Note frequency table (C0 to B8)
     static const float NOTE_FREQUENCIES[108];
     
-    // Command types
-    enum CommandType { PLAY, STOP, SET_VOLUME };
+    // Command types for queue
+    enum CommandType { PLAY, STOP, SET_VOLUME, SET_TEMPO };
     
-    // Queue message structure
+    /**
+     * @brief Queue message structure
+     */
     struct PlayerCommand {
-        CommandType type;
-        const char* tune;     // For PLAY commands
-        uint8_t loopCount;    // For PLAY commands
-        uint8_t volume;       // For SET_VOLUME commands
+        CommandType type;        ///< Command type
+        const char* tune;        ///< RTTTL string (for PLAY)
+        uint8_t loopCount;       ///< Loop count (for PLAY)
+        uint8_t volume;          ///< Volume (for SET_VOLUME)
+        float tempoScale;        ///< Tempo scale (for SET_TEMPO)
     };
 };
 

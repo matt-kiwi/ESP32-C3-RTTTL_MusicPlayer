@@ -6,15 +6,6 @@
 
 A lightweight, non-blocking RTTTL music player library for ESP32-C3 microcontrollers. Plays tunes in the background via FreeRTOS while your main code continues running—perfect for games, alarms, notifications, or background music.
 
-**Features:**
-- 🎵 **Non-blocking playback** via FreeRTOS task
-- 🔄 **Loop control** (once, X times, or forever)
-- 🔊 **Real-time volume control**
-- 📦 **20+ popular tunes included** (Nokia, Mario, Star Wars, etc.)
-- 🎹 **Custom RTTTL support** via string or serial input
-- 🔧 **ESP32-C3 optimized** with minimal memory footprint
-- 📡 **Serial menu system** for easy testing
-
 ## 📦 Installation
 
 ### PlatformIO (Recommended)
@@ -33,13 +24,9 @@ lib_deps =
 2. Search for **"RTTTLPlayer"**
 3. Click **Install**
 
-### Manual Installation
-1. Download the [latest release](https://github.com/econode-nz/RTTTLPlayer/releases)
-2. Extract to your `Arduino/libraries/` folder
-3. Restart Arduino IDE
-
 ## 🚀 Quick Start
 
+### Basic Playback
 ```cpp
 #include <RTTTLPlayer.h>
 #include <RTTTLTunes.h>
@@ -66,6 +53,41 @@ void loop() {
 }
 ```
 
+### With Tempo Control
+```cpp
+// Speed up playback (2x faster)
+player.setTempoScale(2.0);
+player.play(RTTTLTunes::mario);
+
+// Slow down playback (0.5x slower)
+player.setTempoScale(0.5);
+player.play(RTTTLTunes::imperial);
+
+// Get current BPM (including tempo scaling)
+int currentBPM = player.getCurrentBPM();
+```
+
+### With EQ Meter / Frequency Tracking
+```cpp
+void loop() {
+    // Get current frequency for visual effects
+    float currentFreq = player.getCurrentFrequency();
+    
+    if (currentFreq > 20) {
+        // Note is playing - use for visualizer
+        if (currentFreq < 250) {
+            // Bass frequency - light up bass LEDs
+        } else if (currentFreq < 2000) {
+            // Mid frequency
+        } else {
+            // Treble frequency
+        }
+    }
+    
+    delay(10);
+}
+```
+
 ## 🔌 Hardware Setup
 
 ```
@@ -84,96 +106,121 @@ GND     -------> GND           ------> - (Negative)
 
 ## 📖 API Reference
 
-### Basic Methods
+### Basic Playback
 ```cpp
-// Initialize (call in setup())
-void begin();
+void begin();                            // Initialize (call in setup())
+bool play(const char* rtttl, uint8_t loopCount = 0);  // Play RTTTL string
+void stop();                             // Stop playback immediately
 
-// Play RTTTL string with loop control
-// loopCount: 0=once, 1-254=X times, 255=forever
-bool play(const char* rtttl, uint8_t loopCount = 0);
-
-// Stop playback immediately  
-void stop();
-
-// Volume control (0-255)
-void setVolume(uint8_t volume);
-uint8_t getVolume();
-
-// Status checking
-bool isPlaying();
-bool isLooping();
-uint8_t getRemainingLoops();  // 0=not looping, 1-254=loops left, 255=forever
+// Loop control: 0=once, 1-254=X times, 255=forever
+bool isPlaying();                        // Check if playing
+bool isLooping();                        // Check if looping
+uint8_t getRemainingLoops();             // Get loops remaining
 ```
 
-### Included Tunes (in `RTTTLTunes.h`)
-
-| Tune | Constant | Description |
-|------|----------|-------------|
-| Nokia Ringtone | `RTTTLTunes::nokia` | Classic Nokia tune |
-| Super Mario Bros | `RTTTLTunes::mario` | Main theme |
-| Star Wars | `RTTTLTunes::starWars` | Main theme |
-| Imperial March | `RTTTLTunes::imperial` | Darth Vader's theme |
-| Tetris | `RTTTLTunes::tetris` | Korobeiniki theme |
-| Happy Birthday | `RTTTLTunes::happyBirthday` | Birthday song |
-| James Bond | `RTTTLTunes::bond` | 007 theme |
-| Pink Panther | `RTTTLTunes::pinkPanther` | Henry Mancini theme |
-| And 15+ more... | | See RTTTLTunes.h |
-
-### Sound Effects
+### Volume Control
 ```cpp
-player.play(RTTTLTunes::success);  // Success sound
-player.play(RTTTLTunes::error);    // Error sound  
-player.play(RTTTLTunes::alert);    // Alert/notification
-player.play(RTTTLTunes::startup);  // Startup beep
+void setVolume(uint8_t volume);          // 0-255
+uint8_t getVolume();                     // Get current volume
 ```
 
-## 🎮 Examples
+### Tempo Control
+```cpp
+/**
+ * Set tempo scaling factor
+ * @param scale 0.25 = quarter speed, 1.0 = normal, 4.0 = 4x speed
+ */
+void setTempoScale(float scale);
 
-### 1. Menu Player (Complete Example)
-Located in `examples/MenuPlayer/`. Open Serial Monitor at 115200 baud for interactive menu:
+/**
+ * Get current tempo scaling
+ * @return Current tempo multiplier
+ */
+float getTempoScale();
 
+/**
+ * Get effective BPM (original BPM × tempo scale)
+ * @return Current BPM including tempo scaling
+ */
+int getCurrentBPM();
+```
+
+### Frequency Tracking
+```cpp
+/**
+ * Get current playing frequency
+ * @return Frequency in Hz, or 0 if no note playing (rest/pause)
+ * 
+ * Useful for:
+ * - EQ meters and visualizers
+ * - Frequency-based lighting effects
+ * - Real-time audio analysis
+ */
+float getCurrentFrequency();
+```
+
+## 🎮 Example Projects
+
+### 1. `examples/simple` - Basic Usage
+Minimal example showing core functionality:
+```cpp
+// Plays a series of tunes with different loop settings
+player.play(RTTTLTunes::nokia);           // Play once
+player.play(RTTTLTunes::mario, 3);        // Loop 3 times  
+player.play(RTTTLTunes::starWars, 255);   // Loop forever
+```
+
+**Features:**
+- Basic playback with loop control
+- Volume adjustment
+- Status checking
+
+### 2. `examples/simple_eq` - Text EQ Meter
+Real-time frequency visualization in Serial Monitor:
+```cpp
+// Displays formatted EQ meter as notes play
+┌─────────────────────────────────────────────────────────────┐
+│  Freq (Hz)  │   BASS   │    MID    │  TREBLE  │  BPM  │ Tempo │
+├─────────────────────────────────────────────────────────────┤
+│  932 Hz    │          │ ####      │          │  100 │ 1.00x │
+│ 1319 Hz    │          │ ######    │          │  100 │ 1.00x │
+│ 1568 Hz    │          │ #######   │          │  100 │ 1.00x │
+```
+
+**Features:**
+- Real-time frequency display
+- Text-based EQ visualization (Bass/Mid/Treble)
+- Tempo control and BPM display
+- Perfect alignment using printf formatting
+
+### 3. `examples/MenuPlayer` - Complete Interactive Player
+Full-featured serial menu system with all tunes:
 ```
 === RTTTL Player Menu ===
-1. Nokia Ringtone
-2. Super Mario Bros
-3. James Bond Theme
-...
-Select:
+--- Music ---
+ 1. Nokia Ringtone
+ 2. Super Mario Bros
+ 3. James Bond Theme
+ 4. Pink Panther
+ 5. Imperial March (Star Wars)
+...20+ tunes
+--- Player Control ---
+ s. Play Success Sound
+ r. Play Error Sound
+ v. Change Volume
+ p. Check Player Status
+ q. Stop Playback
+ x. Enter Custom RTTTL
+ m. Show this Menu
 ```
 
-### 2. Game with Background Music
-```cpp
-void gameLoop() {
-    // Start looping background music
-    player.play(RTTTLTunes::gameOfThrones, 255);
-    
-    while(gameRunning) {
-        // Game logic here
-        if (playerScored) {
-            player.play(RTTTLTunes::success); // Sound effect
-        }
-    }
-    
-    player.stop(); // Stop music when game ends
-}
-```
-
-### 3. Alarm System
-```cpp
-void triggerAlarm() {
-    // Play urgent alarm (loop forever until stopped)
-    player.play("Alarm:d=4,o=7,b=200:8c7,8c7", 255);
-    
-    // Flash LED while alarm sounds
-    while(alarmActive) {
-        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-        delay(500);
-    }
-    
-    player.stop();
-}
-```
+**Features:**
+- Interactive serial menu (115200 baud)
+- All 20+ included tunes
+- Custom RTTTL input with loop control
+- Volume adjustment
+- Player status display
+- Loop examples (forever, 3x, etc.)
 
 ## 🎵 RTTTL Format
 
@@ -257,7 +304,11 @@ RTTTLPlayer/
 │   ├── RTTTLPlayer.cpp   # Library implementation
 │   └── RTTTLTunes.h      # 20+ pre-loaded tunes
 ├── examples/
-│   └── MenuPlayer/       # Complete serial menu example
+│   ├── simple/           # Basic usage example
+│   │   └── src/main.cpp
+│   ├── simple_eq/        # Text EQ meter example
+│   │   └── src/main.cpp
+│   └── MenuPlayer/       # Complete interactive menu
 │       └── src/main.cpp
 ├── library.json          # PlatformIO configuration
 ├── library.properties    # Arduino IDE configuration
@@ -281,6 +332,9 @@ A: Limited by available heap memory. Typical tunes are 100-500 bytes.
 
 **Q: Does it work with PlatformIO and Arduino IDE?**  
 A: Yes! Both are fully supported.
+
+**Q: Can I visualize the music in real-time?**  
+A: Yes! Use `getCurrentFrequency()` for EQ meters, LED visualizers, or serial displays.
 
 ## 📄 License
 
