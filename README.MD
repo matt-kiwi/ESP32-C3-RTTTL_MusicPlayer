@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/econode-nz/RTTTLPlayer)
 
-A lightweight, non-blocking RTTTL music player library for ESP32-C3 microcontrollers. Plays tunes in the background via FreeRTOS while your main code continues running—perfect for games, alarms, notifications, or background music.
+A lightweight, polling RTTTL music player library for ESP32 series microcontrollers.
 
 ## 📦 Installation
 
@@ -19,10 +19,290 @@ lib_deps =
     econode-nz/RTTTLPlayer
 ```
 
-### Arduino IDE
-1. **Sketch → Include Library → Manage Libraries**
-2. Search for **"RTTTLPlayer"**
-3. Click **Install**
+# RTTTL Player API Reference
+
+## 📋 **Overview**
+A non-blocking, polling-based RTTTL music player for ESP32 with NeoPixel/FastLED compatibility. Uses flash memory for note storage to conserve RAM. Compatible with ESP32, ESP32-C3, and ESP32-S3.
+
+## 📁 **Class Definition**
+```cpp
+class RTTTLPlayer
+```
+
+## 🏗️ **Constructor**
+
+### `RTTTLPlayer(pin, defaultVolume)`
+Creates a new RTTTL player instance.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pin` | `uint8_t` | `3` | GPIO pin for audio PWM output |
+| `defaultVolume` | `uint8_t` | `180` | Initial volume (0-255) |
+
+**Example:**
+```cpp
+RTTTLPlayer player(32, 200);  // Pin 32, volume 200
+```
+
+## 🎵 **Playback Control**
+
+### `begin()`
+Initializes the player hardware. **Must be called in `setup()`**.
+
+**Parameters:** None  
+**Returns:** `void`
+
+**Example:**
+```cpp
+void setup() {
+    player.begin();
+}
+```
+
+### `play(rtttl, loopCount)`
+Starts playing an RTTTL string.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `rtttl` | `const char*` | Required | RTTTL format string |
+| `loopCount` | `uint8_t` | `0` | `0`=once, `1-254`=X times, `255`=forever |
+
+**Returns:** `bool` - `true` if playback started successfully
+
+**Example:**
+```cpp
+player.play("Nokia:d=4,o=5,b=160:8e6,8d6,f#,8e6", 2);  // Play twice
+player.play(RTTTLTunes::marioPowerUp, 255);           // Loop forever
+```
+
+### `stop()`
+Stops playback immediately and silences audio.
+
+**Parameters:** None  
+**Returns:** `void`
+
+**Example:**
+```cpp
+player.stop();
+```
+
+### `loop()`
+Updates player state. **Must be called in main `loop()`**.
+
+**Parameters:** None  
+**Returns:** `void`
+
+**Example:**
+```cpp
+void loop() {
+    player.loop();  // Essential for non-blocking playback
+    // ... other code ...
+}
+```
+
+## 🔊 **Volume Control**
+
+### `setVolume(volume)`
+Sets playback volume.
+
+| Parameter | Type | Range | Description |
+|-----------|------|-------|-------------|
+| `volume` | `uint8_t` | 0-255 | `0`=silent, `255`=maximum |
+
+**Returns:** `void`
+
+**Example:**
+```cpp
+player.setVolume(150);  // Medium volume
+```
+
+### `getVolume()`
+Gets current volume setting.
+
+**Returns:** `uint8_t` - Current volume (0-255)
+
+**Example:**
+```cpp
+uint8_t vol = player.getVolume();  // Returns current volume
+```
+
+## ⏱️ **Tempo Control**
+
+### `setTempoScale(scale)`
+Sets tempo scaling factor.
+
+| Parameter | Type | Range | Description |
+|-----------|------|-------|-------------|
+| `scale` | `float` | 0.1-4.0 | `0.5`=half speed, `1.0`=normal, `2.0`=double speed |
+
+**Returns:** `void`
+
+**Example:**
+```cpp
+player.setTempoScale(0.5);   // Play at half speed
+player.setTempoScale(2.0);   // Play at double speed
+```
+
+### `getTempoScale()`
+Gets current tempo scaling factor.
+
+**Returns:** `float` - Current tempo multiplier
+
+**Example:**
+```cpp
+float tempo = player.getTempoScale();  // e.g., 1.5
+```
+
+### `getCurrentBPM()`
+Gets effective BPM including tempo scaling.
+
+**Returns:** `int` - Current BPM (original BPM × tempo scale)
+
+**Example:**
+```cpp
+int bpm = player.getCurrentBPM();  // e.g., 180
+```
+
+## 📊 **EQ / Frequency Tracking**
+
+### `getCurrentFrequency()`
+Gets frequency of currently playing note.
+
+**Returns:** `float` - Frequency in Hz, or `0.0` for rests/pauses
+
+**Example:**
+```cpp
+float freq = player.getCurrentFrequency();
+if (freq > 0) {
+    Serial.printf("Playing: %.1fHz\n", freq);
+}
+```
+
+## 🔍 **Status Queries**
+
+### `isPlaying()`
+Checks if player is currently playing audio.
+
+**Returns:** `bool` - `true` if playing, `false` if idle
+
+**Example:**
+```cpp
+if (player.isPlaying()) {
+    Serial.println("Audio is playing");
+}
+```
+
+### `isLooping()`
+Checks if player is in loop mode.
+
+**Returns:** `bool` - `true` if looping, `false` if playing once
+
+**Example:**
+```cpp
+if (player.isLooping()) {
+    Serial.println("In loop mode");
+}
+```
+
+### `getRemainingLoops()`
+Gets remaining loop count.
+
+**Returns:** `uint8_t` - `0`=not looping, `1-254`=loops remaining, `255`=infinite loop
+
+**Example:**
+```cpp
+uint8_t loops = player.getRemainingLoops();
+```
+
+## 🐛 **Debugging**
+
+### `setDebug(enabled)`
+Enables/disables debug serial output.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `enabled` | `bool` | `true` to enable debug messages |
+
+**Returns:** `void`
+
+**Example:**
+```cpp
+player.setDebug(true);  // Enable debug output
+```
+
+## 📝 **RTTTL Format Reference**
+
+### Basic Structure
+```
+Name:d=default_duration,o=default_octave,b=beats_per_minute:notes
+```
+
+### Example RTTTL String
+```
+Nokia:d=4,o=5,b=160:8e6,8d6,f#,8e6
+```
+
+### Note Syntax
+- **`8e6`**: Eighth note, E, octave 6
+- **`f#`**: F sharp (uses default duration/octave)
+- **`p`**: Pause/rest
+
+## 🎯 **Quick Start Example**
+
+```cpp
+#include "RTTTLPlayer.h"
+#include <RTTTLTunes.h>
+
+RTTTLPlayer player(32, 180);
+
+void setup() {
+    Serial.begin(115200);
+    player.begin();
+    player.setDebug(true);
+}
+
+void loop() {
+    player.loop();  // Essential!
+    
+    // Control example
+    if (someCondition) {
+        player.play(RTTTLTunes::marioPowerUp);
+        player.setTempoScale(1.5);  // Speed up
+    }
+    
+    // EQ visualization example
+    float freq = player.getCurrentFrequency();
+    if (freq > 0) {
+        // Visualize frequency...
+    }
+    
+    delay(10);
+}
+```
+
+## 📊 **Memory Usage**
+- **Flash**: ~4KB (code + frequency table)
+- **RAM**: ~100 bytes (state variables only)
+- **Frequency Table**: Stored in flash memory
+
+## ⚠️ **Important Notes**
+1. **Always call `player.loop()`** in your main loop
+2. **Initialize with `player.begin()`** in `setup()`
+3. **Volume range**: 0-255 (0=silent)
+4. **Tempo range**: 0.1-4.0 (10% to 400% speed)
+5. **Compatible** with FastLED/NeoPixels (no FreeRTOS conflicts)
+
+## 🔧 **Troubleshooting**
+
+| Issue | Solution |
+|-------|----------|
+| No sound | Check `player.loop()` is called in main loop |
+| Audio stops with FastLED | Ensure `player.loop()` is called every iteration |
+| Volume too low | Use `player.setVolume(200+)` |
+| Compilation errors | Ensure `RTTTLPlayer.h` and `.cpp` are in project |
+
+This API provides complete control over RTTTL playback with minimal RAM usage and full NeoPixel compatibility.
+
 
 ## 🚀 Quick Start
 
@@ -48,7 +328,7 @@ void setup() {
 }
 
 void loop() {
-    // Your code runs while music plays in background!
+    player.loop();
     delay(10);
 }
 ```
@@ -88,21 +368,11 @@ void loop() {
 }
 ```
 
-## 🔌 Hardware Setup
-
-```
-ESP32-C3        Amplifier Module       Speaker
-GPIO 3  -------> SIG (Signal)          
-5V      -------> VCC           ------> + (Positive)
-GND     -------> GND           ------> - (Negative)
-```
-
 **Tested with:**
 - **Amplifier**: SC8002B module (Jaycar XC3744 or similar)
 - **Speaker**: 8Ω 0.5W-2W
 - **ESP32-C3**: ESP32-C3-DevKitC-02 or similar
 
-*Adjust the blue potentiometer on the amplifier module for hardware volume control.*
 
 ## 📖 API Reference
 
@@ -159,68 +429,12 @@ int getCurrentBPM();
 float getCurrentFrequency();
 ```
 
-## 🎮 Example Projects
+## Examples
 
-### 1. `examples/simple` - Basic Usage
-Minimal example showing core functionality:
-```cpp
-// Plays a series of tunes with different loop settings
-player.play(RTTTLTunes::nokia);           // Play once
-player.play(RTTTLTunes::mario, 3);        // Loop 3 times  
-player.play(RTTTLTunes::starWars, 255);   // Loop forever
-```
+ * `examples/simple` - Basic Usage
+ * `examples/simple_eq` - Text EQ Meter
+ * `examples/MenuPlayer` - Complete Interactive Player
 
-**Features:**
-- Basic playback with loop control
-- Volume adjustment
-- Status checking
-
-### 2. `examples/simple_eq` - Text EQ Meter
-Real-time frequency visualization in Serial Monitor:
-```cpp
-// Displays formatted EQ meter as notes play
-┌─────────────────────────────────────────────────────────────┐
-│  Freq (Hz)  │   BASS   │    MID    │  TREBLE  │  BPM  │ Tempo │
-├─────────────────────────────────────────────────────────────┤
-│  932 Hz    │          │ ####      │          │  100 │ 1.00x │
-│ 1319 Hz    │          │ ######    │          │  100 │ 1.00x │
-│ 1568 Hz    │          │ #######   │          │  100 │ 1.00x │
-```
-
-**Features:**
-- Real-time frequency display
-- Text-based EQ visualization (Bass/Mid/Treble)
-- Tempo control and BPM display
-- Perfect alignment using printf formatting
-
-### 3. `examples/MenuPlayer` - Complete Interactive Player
-Full-featured serial menu system with all tunes:
-```
-=== RTTTL Player Menu ===
---- Music ---
- 1. Nokia Ringtone
- 2. Super Mario Bros
- 3. James Bond Theme
- 4. Pink Panther
- 5. Imperial March (Star Wars)
-...20+ tunes
---- Player Control ---
- s. Play Success Sound
- r. Play Error Sound
- v. Change Volume
- p. Check Player Status
- q. Stop Playback
- x. Enter Custom RTTTL
- m. Show this Menu
-```
-
-**Features:**
-- Interactive serial menu (115200 baud)
-- All 20+ included tunes
-- Custom RTTTL input with loop control
-- Volume adjustment
-- Player status display
-- Loop examples (forever, 3x, etc.)
 
 ## 🎵 RTTTL Format
 
@@ -238,23 +452,6 @@ Nokia:d=4,o=5,b=160:8e6,8d6,f#,8e6,8d6,f#
 - **f#**: F sharp (default duration and octave)
 - **p**: Pause/rest
 
-### Adding Custom Tunes
-
-1. **Add to `RTTTLTunes.h`:**
-   ```cpp
-   const char myTune[] = "MySong:d=4,o=5,b=120:8c,8d,8e,8f,8g,8a,8b,8c6";
-   ```
-
-2. **Play it:**
-   ```cpp
-   player.play(RTTTLTunes::myTune);
-   ```
-
-3. **Or enter via Serial Monitor** (in MenuPlayer example):
-   ```
-   Select: x
-   Enter RTTTL: MySong:d=4,o=5,b=120:8c,8d,8e,8f 255  # Loop forever
-   ```
 
 ## 🔗 More RTTTL Tunes Online
 
@@ -263,37 +460,8 @@ Find thousands of RTTTL tunes at:
 - **[RTTTL.js Online Player](https://1j01.github.io/rtttl.js/)** - Test and convert tunes
 - **Search for** "RTTTL ringtones" or "RTTTL converter"
 
-*Tip: Test tunes online first, then copy the RTTTL string into your code.*
 
-## ⚙️ Configuration
 
-### Debug Output
-```cpp
-player.setDebug(true);  // Enable serial debug messages
-```
-
-### FreeRTOS Task Settings
-The player uses:
-- **Stack size**: 4096 bytes (increase if complex tunes crash)
-- **Priority**: 1 (above idle task)
-- **Queue size**: 5 commands
-
-### Volume Guidelines
-- **0-80**: Very quiet (testing)
-- **80-150**: Normal listening
-- **150-220**: Loud
-- **220-255**: Very loud (may distort)
-
-## 🐛 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| **No sound** | Check wiring (5V, GND, SIG), adjust amplifier potentiometer |
-| **Distorted audio** | Reduce volume: `player.setVolume(150)` |
-| **Crashes with long tunes** | Increase stack size in `RTTTLPlayer.cpp` (4096 → 8192) |
-| **Can't stop loop** | Call `player.stop()` and wait 100ms |
-| **Serial menu not showing** | Set Serial Monitor to 115200 baud |
-| **Compile errors** | Ensure ESP32-C3 board is selected in PlatformIO/Arduino IDE |
 
 ## 📁 Library Structure
 
@@ -316,31 +484,12 @@ RTTTLPlayer/
 └── LICENSE              # MIT License
 ```
 
-## ❓ Frequently Asked Questions
-
-**Q: Can I use this with other ESP32 boards?**  
-A: Yes! It works with ESP32, ESP32-S2, and ESP32-S3, but is optimized for ESP32-C3.
-
-**Q: How much memory does it use?**  
-A: Approximately 5KB RAM during playback, plus tune storage.
-
-**Q: Can I play multiple tunes at once?**  
-A: No, only one tune at a time (monophonic playback).
-
-**Q: What's the maximum tune length?**  
-A: Limited by available heap memory. Typical tunes are 100-500 bytes.
-
-**Q: Does it work with PlatformIO and Arduino IDE?**  
-A: Yes! Both are fully supported.
-
-**Q: Can I visualize the music in real-time?**  
-A: Yes! Use `getCurrentFrequency()` for EQ meters, LED visualizers, or serial displays.
 
 ## 📄 License
 
 MIT License
 
-Copyright (c) 2024 Econode NZ  
+Copyright (c) 2025 Econode NZ  
 Author: Matt Way
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

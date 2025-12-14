@@ -10,6 +10,9 @@
  */
 
 namespace RTTTLTunes {
+
+    // Christmas
+    const char jingleBells[] =  "Jingle Bells:d=4,o=5,b=125:8g,8e6,8d6,8c6,2g,8g,8e6,8d6,8c6,2a,8a,8f6,8e6,8d6,8b,8g,8b,8d6,8g.6,16g6,8f6,8d6,2e6,8g,8e6,8d6,8c6,2g,16f#,8g,8e6,8d6,8c6,2a,8a,8f6,8e6,8d6,8g6,16g6,16f#6,16g6,16f#6,16g6,16g#6,8a.6,16g6,8e6,8d6,c6,g6,8e6,8e6,8e.6,16d#6,8e6,8e6,8e.6,16d#6,8e6,8g6,8c.6,16d6,2e6,8f6,8f6,8f.6,16f6,8f6,8e6,8e6,16e6,16e6,8e6,8d6,8d6,8e6,2d6";
     // Classic ringtones
     const char nokia[] = "Nokia:d=4,o=5,b=160:8e6,8d6,f#,8e6,8d6,f#,8e6,8d6,f#,8e6,8d6,f#";
     const char mario[] = "Mario:d=4,o=5,b=100:16e6,16e6,32p,8e6,16c6,8e6,8g6,8p,8g,8p,8c6,16p,8g,16p,8e,16p,8a,8b,16a#,8a,16g.,16e6,16g6,8a6,16f6,8g6,16e6,16c6,16d6,8b";
@@ -31,10 +34,10 @@ namespace RTTTLTunes {
     const char marioPowerUp[] = "Mario PowerUp:d=4,o=5,b=100:16e6,16e6,16p,16e6,16p,16c6,16e6,16p,16g6,16p,16p,16p,16g";
     const char starWars[] = "StarWars:d=4,o=5,b=45:32p,32f6,32f6,32f6,8b.6,16f6,32f6,32f6,32f6,8b.6,16f6,32f6,32f6,32f6,8b.6,16f6,32f6,32f6,32f6,8c7,8b.6";
     const char beethoven5th[] = "Beethoven5th:d=4,o=5,b=180:8g,8g,8g,8d#";
-    const char montyPython[] = "MontyPython:d=4,o=5,b=120:8c,8e,8g,8c6";
+    const char montyPython[] = "Monty Python:d=8,o=5,b=180:d#6,d6,4c6,b,4a#,a,4g#,g,f,g,g#,4g,f,2a#,p,a#,g,p,g,g,f#,g,d#6,p,a#,a#,p,g,g#,p,g#,g#,p,a#,2c6,p,g#,f,p,f,f,e,f,d6,p,c6,c6,p,g#,g,p,g,g,p,g#,2a#,p,a#,g,p,g,g,f#,g,g6,p,d#6,d#6,p,a#,a,p,f6,f6,p,f6,2f6,p,d#6,4d6,f6,f6,e6,f6,4c6,f6,f6,e6,f6,a#,p,a,a#,p,a,2a#";
     
     // Your custom additions
-    const char mash[] = "MASH:d=4,o=5,b=140:8c,8d,8e,8f,8g,8a,8b,8c6";
+    const char mash[] = "ASH:d=8,o=5,b=140:4a,4g,f#,g,p,f#,p,g,p,f#,p,2e.,p,f#,e,4f#,e,f#,p,e,p,4d.,p,f#,4e,d,e,p,d,p,e,p,d,p,2c#.,p,d,c#,4d,c#,d,p,e,p,4f#,p,a,p,4b,a,b,p,a,p,b,p,2a.,4p,a,b,a,4b,a,b,p,2a.,a,4f#,a,b,p,d6,p,4e.6,d6,b,p,a,p,2b";
     
     // Sound effects
     const char startup[] = "Startup:d=4,o=5,b=120:8c6,8e6,8g6";

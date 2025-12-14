@@ -2,26 +2,23 @@
 #define RTTTLPLAYER_H
 
 #include <Arduino.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/queue.h>
 
 class RTTTLPlayer {
 public:
     /**
-     * @brief Constructor for RTTTL Player
-     * @param pin GPIO pin connected to audio amplifier (default: GPIO3)
+     * @brief Construct a new RTTTLPlayer object
+     * @param pin GPIO pin for audio output (PWM)
      * @param defaultVolume Initial volume level 0-255 (default: 180)
      */
     RTTTLPlayer(uint8_t pin = 3, uint8_t defaultVolume = 180);
     
     /**
-     * @brief Destructor - cleans up FreeRTOS resources
+     * @brief Destroy the RTTTLPlayer object
      */
     ~RTTTLPlayer();
     
     /**
-     * @brief Initialize the player (must be called in setup())
+     * @brief Initialize the player hardware
      */
     void begin();
     
@@ -39,14 +36,19 @@ public:
     void stop();
     
     /**
-     * @brief Check if player is currently playing
-     * @return true if playing
+     * @brief Update player state - call this in your main loop()
      */
-    bool isPlaying() const { return _playing; }
+    void loop();
+    
+    /**
+     * @brief Check if player is currently playing
+     * @return true if audio is playing
+     */
+    bool isPlaying() const { return _state == STATE_PLAYING; }
     
     /**
      * @brief Check if player is in loop mode
-     * @return true if looping
+     * @return true if looping enabled
      */
     bool isLooping() const { return _loopCount > 0; }
     
@@ -58,12 +60,12 @@ public:
     
     /**
      * @brief Set playback volume
-     * @param volume Volume level (0-255)
+     * @param volume Volume level (0=silent, 255=max)
      */
     void setVolume(uint8_t volume);
     
     /**
-     * @brief Get current volume
+     * @brief Get current volume setting
      * @return Current volume level (0-255)
      */
     uint8_t getVolume() const { return _volume; }
@@ -71,6 +73,7 @@ public:
     /**
      * @brief Set tempo scaling factor
      * @param scale 0.5 = half speed, 1.0 = normal, 2.0 = double speed
+     * @note Takes effect on next note
      */
     void setTempoScale(float scale);
     
@@ -83,6 +86,7 @@ public:
     /**
      * @brief Get current frequency being played
      * @return Frequency in Hz, or 0 if no note is playing (rest/pause)
+     * @note Useful for EQ meters and visualizers
      */
     float getCurrentFrequency() const { return _currentFrequency; }
     
@@ -99,82 +103,35 @@ public:
     void setDebug(bool enabled) { _debug = enabled; }
     
 private:
-    /**
-     * @brief FreeRTOS task function for background playback
-     */
-    static void playerTask(void* parameter);
+    enum PlayerState { STATE_IDLE, STATE_PLAYING, STATE_PAUSED };
     
-    /**
-     * @brief Parse and play an RTTTL string
-     * @param rtttl RTTTL string to play
-     * @return true if successful
-     */
-    bool parseAndPlay(const char* rtttl);
-    
-    /**
-     * @brief Parse a number from string
-     * @param ptr Reference to string pointer (will be advanced)
-     * @return Parsed number
-     */
-    int parseNumber(const char* &ptr);
-    
-    /**
-     * @brief Get frequency for a note and octave
-     * @param note Note index (0=C, 1=C#, 2=D, ..., 11=B)
-     * @param octave Octave number (0-8)
-     * @return Frequency in Hz
-     */
-    float getFrequency(uint8_t note, uint8_t octave);
-    
-    /**
-     * @brief Calculate note duration in milliseconds
-     * @param duration Note duration value (4=quarter, 8=eighth, etc.)
-     * @param dots Number of dots (dotted notes)
-     * @param bpm Beats per minute
-     * @return Duration in milliseconds
-     */
-    int calculateDuration(int duration, int dots, int bpm);
-    
-    /**
-     * @brief Play a single note
-     * @param frequency Note frequency in Hz (0 for rest)
-     * @param durationMs Duration in milliseconds
-     */
-    void playNote(float frequency, int durationMs);
-    
-    // Member variables
-    uint8_t _pin;               ///< GPIO pin for audio output
-    uint8_t _volume;            ///< Current volume level (0-255)
-    volatile bool _playing;     ///< True if currently playing
-    bool _debug;                ///< Debug output enabled
-    TaskHandle_t _playerTask;   ///< FreeRTOS task handle
-    QueueHandle_t _commandQueue;///< Command queue for task communication
-    
-    // Loop control
-    volatile uint8_t _loopCount;///< Current loop count (0=once, 255=forever)
-    char* _currentTune;         ///< Current RTTTL string (in heap)
-    
-    // New: Tempo and frequency tracking
-    volatile float _tempoScale;      ///< Tempo multiplier (default 1.0)
-    volatile int _currentBpm;        ///< Original BPM from RTTTL
-    volatile float _currentFrequency;///< Current note frequency (0 for rest)
-    
-    // Note frequency table (C0 to B8)
+    /// @brief Note frequency table (C0 to B8) - stored in flash
     static const float NOTE_FREQUENCIES[108];
     
-    // Command types for queue
-    enum CommandType { PLAY, STOP, SET_VOLUME, SET_TEMPO };
+    // Helper functions
+    int parseNumber(const char* &ptr);
+    int calculateDuration(int duration, int dots, int bpm);
+    float getFrequency(uint8_t note, uint8_t octave);
+    void parseNextNote();
     
-    /**
-     * @brief Queue message structure
-     */
-    struct PlayerCommand {
-        CommandType type;        ///< Command type
-        const char* tune;        ///< RTTTL string (for PLAY)
-        uint8_t loopCount;       ///< Loop count (for PLAY)
-        uint8_t volume;          ///< Volume (for SET_VOLUME)
-        float tempoScale;        ///< Tempo scale (for SET_TEMPO)
-    };
+    // Hardware properties
+    uint8_t _pin;               ///< GPIO pin for audio output
+    uint8_t _volume;            ///< Current volume level (0-255)
+    
+    // Player state
+    PlayerState _state;         ///< Current playback state
+    bool _debug;                ///< Debug output enabled
+    uint8_t _loopCount;         ///< Remaining loop count
+    
+    // Playback tracking
+    const char* _currentTune;   ///< Pointer to current RTTTL string
+    const char* _tunePtr;       ///< Current position in RTTTL string
+    unsigned long _noteEndTime; ///< When current note ends (millis)
+    
+    // Frequency and tempo tracking
+    volatile float _currentFrequency; ///< Frequency of currently playing note
+    volatile int _currentBpm;         ///< BPM from current RTTTL
+    volatile float _tempoScale;       ///< Tempo multiplier (default 1.0)
 };
 
 #endif // RTTTLPLAYER_H
